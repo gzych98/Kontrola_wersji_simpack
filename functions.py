@@ -2,6 +2,7 @@ import os
 import tkinter as tk
 from tkinter import filedialog, simpledialog
 import datetime
+from minimalizacja import setup_tray_icon
 
 def custom_text_dialog(root, title, prompt):
     dialog_result = {"text": None}
@@ -37,7 +38,7 @@ def app_integration(listbox, info_label, root):
         full_path = listbox.get(index)
         filename = os.path.basename(full_path)
 
-        log_text = custom_text_dialog(root, "Wprowadź tekst", "Wpisz tekst do zapisania:")
+        log_text = custom_text_dialog(root, "Log", "Log text:")
         if log_text is None:  # użytkownik anulował dialog
             return
         # Tworzenie nazwy pliku z datą i czasem
