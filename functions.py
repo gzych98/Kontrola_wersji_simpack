@@ -20,7 +20,7 @@ def custom_text_dialog(root, title, prompt):
     text.focus_set()
 
     submit_button = tk.Button(dialog, text="OK", command=on_submit)
-    submit_button.pack()
+    submit_button.pack(pady=5)
 
     dialog.transient(root)  # Ustawia okno dialogowe jako podrzędne w stosunku do głównego okna
     dialog.wait_window()  # Czeka na zamknięcie okna dialogowego
@@ -44,11 +44,19 @@ def app_integration(listbox, info_label, root):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
 
-        # Zapisywanie tekstu do pliku w tej samej lokalizacji
-        with open(os.path.join(os.path.dirname(full_path), nowa_nazwa_pliku), "w") as plik:
+        # Tworzenie katalogu /log, jeśli nie istnieje
+        log_directory = os.path.join(os.path.dirname(full_path), "log")
+        if not os.path.exists(log_directory):
+            os.makedirs(log_directory)
+
+        # Ścieżka do nowego pliku w katalogu /log
+        log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
+
+        # Zapisywanie tekstu do pliku
+        with open(log_file_path, "w", encoding='utf-8') as plik:
             plik.write(log_text)
 
-    info_label.config(text=f'Integration: {filename}')
+        info_label.config(text=f'Integration: {filename}')
     return(filename)
 
 def app_measurement(listbox, info_label):
