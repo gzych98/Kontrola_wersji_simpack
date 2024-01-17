@@ -1,6 +1,6 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QListWidget, QVBoxLayout, QHBoxLayout, QWidget, QDesktopWidget
 from PyQt5.QtGui import QIcon
-from qfunctions import app_integration, app_process
+from qfunctions import app_process, process_active
 from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QListWidget, QApplication, QMainWindow, QVBoxLayout, QWidget
@@ -41,6 +41,7 @@ class MainApp(QMainWindow):
         super().__init__()
         self.initUI()
         self.setup_tray_icon()
+        self.setup_monitoring()
 
 
     def initUI(self):
@@ -62,7 +63,7 @@ class MainApp(QMainWindow):
         self.integration_button.clicked.connect(lambda: app_process(self.listbox, self.info_label, self, ["--integration", "--file"]))
 
         self.measurement_button = QPushButton("Measurement", self)
-        self.measurement_button.clicked.connect(lambda: app_integration(self.listbox, self.info_label, self, ["--measurement", "--file"]))
+        self.measurement_button.clicked.connect(lambda: app_process(self.listbox, self.info_label, self, ["--measurement", "--file"]))
 
         self.minimize_button = QPushButton("Minimalizuj", self)
         self.minimize_button.clicked.connect(self.hide_window)
@@ -70,6 +71,8 @@ class MainApp(QMainWindow):
         self.delete_button = QPushButton("Wyczyść", self)
         self.delete_button.clicked.connect(self.clear_list)
 
+        self.status_label = QLabel("Stan procesu: Nieaktywny", self)
+        
 
         self.info_label = QLabel("", self)
 
@@ -84,6 +87,7 @@ class MainApp(QMainWindow):
         main_layout.addWidget(self.listbox)
         main_layout.addWidget(self.info_label)        
         main_layout.addWidget(self.delete_button)
+        main_layout.addWidget(self.status_label)  # Dodanie etykiety statusu do layoutu
         main_layout.addWidget(self.minimize_button)
 
         central_widget = QWidget()
@@ -92,8 +96,14 @@ class MainApp(QMainWindow):
 
     def setup_monitoring(self):
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.check_queue)
+        self.timer.timeout.connect(self.update_status)
         self.timer.start(1000)  # Sprawdzanie co sekundę
+
+    def update_status(self):
+        if process_active.is_set():
+            self.status_label.setText("Stan procesu: Aktywny")
+        else:
+            self.status_label.setText("Stan procesu: Nieaktywny")
 
     def check_queue(self):
         while not self.output_queue.empty():
