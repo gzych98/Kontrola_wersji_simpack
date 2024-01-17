@@ -4,9 +4,68 @@ from PyQt5.QtWidgets import QInputDialog
 import os, subprocess, threading, queue
 import time, datetime
 
+def app_process(listbox, info_label, mainWindow, process_args):
+    selected_items = listbox.selectedItems()
+    if not selected_items:
+        info_label.setText("Wybierz plik")
+        return
+
+    for item in selected_items:
+        full_path = item.text()
+        # Używamy process_args wraz z full_path do stworzenia pełnej listy argumentów
+        arguments = [process_args + [full_path]]
+        print(f"ARGS: {arguments}")
+        solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
+        filename = os.path.basename(full_path)
+
+        dialog = CustomTextDialog(mainWindow, "Log", "Log text:")
+        if dialog.exec_() == QDialog.Accepted:
+            log_text = dialog.getText()
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
+
+            log_directory = os.path.join(os.path.dirname(full_path), "log")
+            if not os.path.exists(log_directory):
+                os.makedirs(log_directory)
+
+            log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
+
+            # Zapis log_text do pliku
+            with open(log_file_path, "w", encoding='utf-8') as plik:
+                plik.write("Log tekst:\n" + log_text + "\n\n")
+
+            output_queue = queue.Queue()
+            uruchom_analize_w_watku(arguments, solver, 0, output_queue)
+
+            while True:
+                if not output_queue.empty():
+                    result = output_queue.get()
+                    with open(log_file_path, "a", encoding='utf-8') as plik:
+                        plik.write(result + "\n")
+                    break
+
 def uruchom_analize_w_watku(arguments, solver_path, delay_time, output_queue):
     analiza_thread = threading.Thread(target=uruchom_analize, args=(arguments, solver_path, delay_time, output_queue))
     analiza_thread.start()
+
+def uruchom_analize(arguments, solver_path, delay_time, output_queue):
+    start_time = datetime.datetime.now()
+    print(f"APLIKACJA:\tRozpoczęcie analizy! {start_time} ")
+
+    if delay_time >= 0:
+        while delay_time > 0:
+            print(f"APLIKACJA:\tPozostały czas: {delay_time} [min]")
+            time.sleep(60)
+            delay_time -= 1
+
+    for argument in arguments:
+        if isinstance(argument, list):
+            # Bezpośrednie uruchomienie procesu w nowym wątku
+            process_thread = threading.Thread(target=subprocess.Popen, args=([solver_path] + argument, ), kwargs={'creationflags': subprocess.CREATE_NEW_CONSOLE})
+            process_thread.start()
+        else:
+            print("APLIKACJA:\tERROR:\targument nie jest listą")
+
 
 def uruchom_proces2(argument, solver_path, output_queue):
     subprocess.Popen([solver_path] + argument, creationflags=subprocess.CREATE_NEW_CONSOLE)
@@ -18,7 +77,8 @@ def uruchom_proces(argument, solver_path, output_queue):
     process_thread = threading.Thread(target=subprocess.Popen, args=([solver_path] + argument, ), kwargs={'creationflags': subprocess.CREATE_NEW_CONSOLE})
     process_thread.start()
 
-def uruchom_analize(arguments, solver_path, delay_time, output_queue):
+
+def uruchom_analize3(arguments, solver_path, delay_time, output_queue):
     start_time = datetime.datetime.now()
     print(f"APLIKACJA:\tRozpoczęcie analizy! {start_time} ")
 
@@ -96,49 +156,6 @@ class CustomTextDialog(QDialog):
     def getText(self):
         return self.textEdit.toPlainText()
     
-
-def app_process(listbox, info_label, mainWindow, process_args):
-    selected_items = listbox.selectedItems()
-    if not selected_items:
-        info_label.setText("Wybierz plik")
-        return
-
-    for item in selected_items:
-        full_path = item.text()
-        # Używamy process_args wraz z full_path do stworzenia pełnej listy argumentów
-        arguments = [process_args + [full_path]]
-        print(f"ARGS: {arguments}")
-        solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
-        filename = os.path.basename(full_path)
-
-        dialog = CustomTextDialog(mainWindow, "Log", "Log text:")
-        if dialog.exec_() == QDialog.Accepted:
-            log_text = dialog.getText()
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
-
-            log_directory = os.path.join(os.path.dirname(full_path), "log")
-            if not os.path.exists(log_directory):
-                os.makedirs(log_directory)
-
-            log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
-
-            # Zapis log_text do pliku
-            with open(log_file_path, "w", encoding='utf-8') as plik:
-                plik.write("Log tekst:\n" + log_text + "\n\n")
-
-            output_queue = queue.Queue()
-            uruchom_analize_w_watku(arguments, solver, 0, output_queue)
-
-            while True:
-                if not output_queue.empty():
-                    result = output_queue.get()
-                    with open(log_file_path, "a", encoding='utf-8') as plik:
-                        plik.write(result + "\n")
-                    break
-
-
-
 
 def app_integration(listbox, info_label, mainWindow):
     selected_items = listbox.selectedItems()

@@ -4,7 +4,7 @@ from qfunctions import app_integration, app_process
 from PyQt5.QtWidgets import QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QListWidget, QApplication, QMainWindow, QVBoxLayout, QWidget
-from PyQt5.QtCore import Qt, QMimeData
+from PyQt5.QtCore import Qt, QMimeData, QTimer
 from PyQt5.QtGui import QDragEnterEvent, QDropEvent
 
 class DragDropListWidget(QListWidget):
@@ -48,7 +48,7 @@ class MainApp(QMainWindow):
         self.setGeometry(0, 0, 500, 300)  # tymczasowa geometria
         self.setWindowPosition()  
 
-        self.setWindowIcon(QIcon(r"D:\PY_SCRIPT\Aplikacja_kontroli_wersji\wrench-solid.ico"))
+        self.setWindowIcon(QIcon(r"wrench-solid.ico"))
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
 
         # Tworzenie widgetów
@@ -90,6 +90,17 @@ class MainApp(QMainWindow):
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
 
+    def setup_monitoring(self):
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check_queue)
+        self.timer.start(1000)  # Sprawdzanie co sekundę
+
+    def check_queue(self):
+        while not self.output_queue.empty():
+            message = self.output_queue.get()
+            # Aktualizuj UI na podstawie wiadomości
+            self.statusBar().showMessage(message)
+
     def focusInEvent(self, event):
         self.setWindowOpacity(1.0)  # Normalna przezroczystość
         super().focusInEvent(event)
@@ -100,10 +111,10 @@ class MainApp(QMainWindow):
 
     def setup_tray_icon(self):
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon(r"wrench-solid.ico"))
+        self.tray_icon.setIcon(QIcon(r"favicon.ico"))
 
         show_action = QAction("Pokaż", self)
-        show_action.triggered.connect(self.show)
+        show_action.triggered.connect(self.show_window)
         exit_action = QAction("Wyjdź", self)
         exit_action.triggered.connect(self.close)
 
@@ -112,7 +123,18 @@ class MainApp(QMainWindow):
         tray_menu.addAction(exit_action)
 
         self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.tray_icon_activated)
         self.tray_icon.show()
+
+    def tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.Trigger:
+            self.show_window()
+
+    def show_window(self):
+        if self.isMinimized() or not self.isVisible():
+            self.showNormal()
+        self.activateWindow()
+
     
     def setWindowPosition(self):
         desktop = QDesktopWidget()
