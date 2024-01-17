@@ -95,6 +95,48 @@ class CustomTextDialog(QDialog):
 
     def getText(self):
         return self.textEdit.toPlainText()
+    
+
+def app_process(listbox, info_label, mainWindow, process_args):
+    selected_items = listbox.selectedItems()
+    if not selected_items:
+        info_label.setText("Wybierz plik")
+        return
+
+    for item in selected_items:
+        full_path = item.text()
+        # Używamy process_args wraz z full_path do stworzenia pełnej listy argumentów
+        arguments = [process_args + [full_path]]
+        print(f"ARGS: {arguments}")
+        solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
+        filename = os.path.basename(full_path)
+
+        dialog = CustomTextDialog(mainWindow, "Log", "Log text:")
+        if dialog.exec_() == QDialog.Accepted:
+            log_text = dialog.getText()
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
+
+            log_directory = os.path.join(os.path.dirname(full_path), "log")
+            if not os.path.exists(log_directory):
+                os.makedirs(log_directory)
+
+            log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
+
+            # Zapis log_text do pliku
+            with open(log_file_path, "w", encoding='utf-8') as plik:
+                plik.write("Log tekst:\n" + log_text + "\n\n")
+
+            output_queue = queue.Queue()
+            uruchom_analize_w_watku(arguments, solver, 0, output_queue)
+
+            while True:
+                if not output_queue.empty():
+                    result = output_queue.get()
+                    with open(log_file_path, "a", encoding='utf-8') as plik:
+                        plik.write(result + "\n")
+                    break
+
 
 
 
