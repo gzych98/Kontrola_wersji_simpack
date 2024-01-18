@@ -1,14 +1,15 @@
 import random
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QTextEdit, QPushButton
-from PyQt5.QtWidgets import QFileDialog
-from PyQt5.QtWidgets import QInputDialog
 import os, subprocess, threading, queue
 import time, datetime
+import pygetwindow as gw
+import pyautogui
+
 
 # Globalna flaga stanu procesu (bezpieczna dla wątków)
 process_active = threading.Event()
 
-def app_process(listbox, info_label, mainWindow, process_args):
+def app_process(listbox, info_label, mainWindow, process_args, solver):
     selected_items = listbox.selectedItems()
     if not selected_items:
         info_label.setText("Wybierz plik")
@@ -16,27 +17,32 @@ def app_process(listbox, info_label, mainWindow, process_args):
 
     for item in selected_items:
         full_path = item.text()
+        # Sprawdzenie rozszerzenia pliku
+        if not full_path.lower().endswith('.spck'):
+            info_label.setText("To nie jest plik .spck")
+            continue
         arguments = [process_args + [full_path]]
         print(f"ARGS: {arguments}")
-        solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
+        #solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
         filename = os.path.basename(full_path)
 
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
+        # timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        # nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
         log_directory = os.path.join(os.path.dirname(full_path), "log")
         os.makedirs(log_directory, exist_ok=True)
-        log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
+        #log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
+        log_file_path = os.path.join(log_directory,  f"{filename}_log.txt")
 
         dialog_and_logging(mainWindow, full_path, log_file_path)
 
         output_queue = queue.Queue()
-        #threading.Thread(target=uruchom_analize, args=(arguments, solver, 0, output_queue)).start()
-        threading.Thread(target=testowy_proces, args=(arguments,)).start()
+        threading.Thread(target=uruchom_analize, args=(arguments, solver, 0, output_queue)).start()
+        #threading.Thread(target=testowy_proces, args=(arguments,)).start()
         threading.Thread(target=process_output, args=(output_queue, log_file_path)).start()
         if process_active.is_set():
-            print("Proces jest aktywny")
+            print("PROCES:\tProces jest aktywny")
         else:
-            print("Proces nie jest aktywny")
+            print("PROCES:\tProces nie jest aktywny")
 
 def testowy_proces(arguments):
     global process_active
@@ -51,11 +57,12 @@ def testowy_proces(arguments):
         process_active.clear()  # Wyłączenie flagi na zakończenie procesu
 
 def dialog_and_logging(mainWindow, full_path, log_file_path):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     dialog = CustomTextDialog(mainWindow, "Log", "Log text:")
     if dialog.exec_() == QDialog.Accepted:
         log_text = dialog.getText()
-        with open(log_file_path, "w", encoding='utf-8') as plik:
-            plik.write("Log tekst:\n" + log_text + "\n\n")
+        with open(log_file_path, "a", encoding='utf-8') as plik:
+            plik.write(f"{timestamp} - Log tekst:\n{log_text}\n\n")
 
 def process_output(output_queue, log_file_path):
     while True:
@@ -77,6 +84,8 @@ def uruchom_w_watku(func):
 def uruchom_analize(arguments, solver_path, delay_time, output_queue):
     global process_active
     process_active.set()  # Ustawienie flagi na aktywną na początek procesu
+    procesy = []  # Lista do przechowywania procesów
+
     try:
         start_time = datetime.datetime.now()
         print(f"APLIKACJA:\tRozpoczęcie analizy! {start_time} ")
@@ -89,85 +98,42 @@ def uruchom_analize(arguments, solver_path, delay_time, output_queue):
 
         for argument in arguments:
             if isinstance(argument, list):
-                process_thread = threading.Thread(target=subprocess.Popen, args=([solver_path] + argument, ), kwargs={'creationflags': subprocess.CREATE_NEW_CONSOLE})
-                process_thread.start()
+                process = subprocess.Popen([solver_path] + argument, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                procesy.append(process)  # Dodanie procesu do listy
             else:
                 print("APLIKACJA:\tERROR:\targument nie jest listą")
-        pass
-    finally: process_active.clear()
+
+        for process in procesy:
+            process.wait()  # Czekanie na zakończenie każdego procesu
+
+        print('APLIKACJA:\tAnaliza zakończona')
+    except Exception as e:
+        print(f"APLIKACJA:\tERROR:\t{e}")
+
+    process_active.clear()  # Zakończenie procesu i czyszczenie flagi
+
+def aktywuj_simpack_pre_i_otworz_plik(sciezka_pliku):
+    sciezka_pliku = sciezka_pliku.replace("/", "\\")
+
+    # Jeśli pierwszy znak to backslash, PyAutoGUI może go interpretować jako kombinację klawiszy,
+    # więc dodajemy r przed stringiem, aby zapewnić, że będzie traktowany jako surowy string
+    sciezka_pliku = 'r"' + sciezka_pliku + '"'
+    okna = [okno for okno in gw.getAllWindows() if "- Simpack 2023x.3 - Pre" in okno.title]
+
+    if okna:
+        okno = okna[0]  # Zakładając, że interesuje nas pierwsze znalezione okno
+        okno.activate()  # Aktywacja okna
+
+        # Symulacja naciśnięcia CTRL+O
+        pyautogui.hotkey('ctrl', 'o')
+        time.sleep(1)  # Krótkie opóźnienie, aby upewnić się, że okno dialogowe jest otwarte
+
+        # Wpisanie ścieżki do pliku i naciśnięcie 'Enter'
+        pyautogui.write(sciezka_pliku)
+        pyautogui.press('enter')
+    else:
+        print("Nie znaleziono okna Simpack Pre.")
     
-
-
-def uruchom_proces2(argument, solver_path, output_queue):
-    subprocess.Popen([solver_path] + argument, creationflags=subprocess.CREATE_NEW_CONSOLE)
-    #proces.wait()
-    output_queue.put(f"Model: {argument[2]}")
-
-def uruchom_proces(argument, solver_path, output_queue):
-    print("WYSTARTOWAŁ")
-    process_thread = threading.Thread(target=subprocess.Popen, args=([solver_path] + argument, ), kwargs={'creationflags': subprocess.CREATE_NEW_CONSOLE})
-    process_thread.start()
-
-
-def uruchom_analize3(arguments, solver_path, delay_time, output_queue):
-    start_time = datetime.datetime.now()
-    print(f"APLIKACJA:\tRozpoczęcie analizy! {start_time} ")
-
-    if delay_time >= 0:
-        while delay_time > 0:
-            print(f"APLIKACJA:\tPozostały czas: {delay_time} [min]")
-            time.sleep(60)
-            delay_time -= 1
-
-    for argument in arguments:
-        if isinstance(argument, list):
-            threading.Thread(target=uruchom_proces, args=(argument, solver_path, output_queue)).run()
-        else:
-            print("APLIKACJA:\tERRPR:\targument nie jest listą")
-
-    # end_time = datetime.datetime.now()
-    # result = f"Analiza zakończona ({start_time} : {end_time})"
-    # print(result)
-
-def uruchom_analize2(arguments, solver_path, delay_time, output_queue):
-    """
-    Uruchamia serię analiz symulacyjnych przy użyciu podanego solvera.
-
-    Args:
-    - arguments (list of list of str): Lista argumentów dla każdej analizy. Każda podlista zawiera zestaw 
-      argumentów dla jednej analizy.
-    - solver_path (str): Ścieżka do pliku wykonywalnego solvera.
-    - delay_time (int): Czas opóźnienia przed rozpoczęciem analiz w minutach.
-
-    Funkcja wypisuje na ekranie czas rozpoczęcia i zakończenia analiz, a także informacje o pozostałym czasie 
-    opóźnienia, jeśli jest ustawione. Wykonuje polecenia solvera z podanymi argumentami.
-    """
-    start_time = datetime.datetime.now()
-    print(f"APLIKACJA:\tINFO\tRozpoczęcie analizy! {start_time} ")
-    
-    if delay_time >= 0:
-        while delay_time > 0:
-            print(f"APLIKACJA:\tINFO\tPozostały czas: {delay_time} [min]")
-            time.sleep(60)
-            delay_time -= 1
-    
-    procesy = []    
-    
-    for argument in arguments:
-        # Upewnij się, że argument jest listą
-        if isinstance(argument, list):
-            proces = subprocess.Popen([solver_path] + argument)
-            procesy.append(proces)  # Dodanie procesu do listy            
-        else:
-            print("APLIKACJA:\tERROR:\targument nie jest listą")
-    
-    for proces in procesy:
-        proces.wait()
-
-    result = f"APLIKACJA:\tINFO\tAnaliza zakończona ({start_time} : {datetime.datetime.now()})"
-    print(result)
-    output_queue.put(result)
-
 class CustomTextDialog(QDialog):
     def __init__(self, parent, title, prompt):
         super().__init__(parent)
@@ -186,76 +152,3 @@ class CustomTextDialog(QDialog):
 
     def getText(self):
         return self.textEdit.toPlainText()
-    
-
-# def app_integration(listbox, info_label, mainWindow):
-#     selected_items = listbox.selectedItems()
-#     if not selected_items:
-#         info_label.setText("Wybierz plik")
-#         return
-
-#     for item in selected_items:
-#         full_path = item.text()
-#         arguments = [["--integration", "--file", full_path]]
-#         solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
-#         filename = os.path.basename(full_path)
-
-#         dialog = CustomTextDialog(mainWindow, "Log", "Log text:")
-#         if dialog.exec_() == QDialog.Accepted:
-#             log_text = dialog.getText()
-#             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-#             nowa_nazwa_pliku = f"{timestamp}_{filename}.txt"
-
-#             log_directory = os.path.join(os.path.dirname(full_path), "log")
-#             if not os.path.exists(log_directory):
-#                 os.makedirs(log_directory)
-
-#             log_file_path = os.path.join(log_directory, nowa_nazwa_pliku)
-
-#             # Zapis log_text do pliku
-#             with open(log_file_path, "w", encoding='utf-8') as plik:
-#                 plik.write("Log tekst:\n" + log_text + "\n\n")
-
-#             output_queue = queue.Queue()
-#             uruchom_analize_w_watku(arguments, solver, 0, output_queue)
-
-#             while True:
-#                 if not output_queue.empty():
-#                     result = output_queue.get()
-#                     with open(log_file_path, "a", encoding='utf-8') as plik:
-#                         plik.write(result + "\n")
-#                     break   
-
-
-def dodaj_pliki(listWidget):
-    pliki, _ = QFileDialog.getOpenFileNames()
-    for plik in pliki:
-        listWidget.addItem(plik)
-
-
-
-
-def zapisz_tekst_jako_plik(listWidget, info_label):
-    selected = listWidget.curselection()
-    if not selected:
-        info_label.setText(text="Wybierz plik")
-        return
-    
-    for index in selected:
-        sciezka_pliku = listWidget.get(index)
-        nazwa_pliku = os.path.basename(sciezka_pliku)
-
-        # Pobieranie tekstu od użytkownika
-
-    tekst_uzytkownika, ok = QInputDialog.getText(None, "Wprowadź tekst", "Wpisz tekst do zapisania:")
-    if ok:
-        # Tworzenie nazwy pliku z datą i czasem
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        nowa_nazwa_pliku = f"{timestamp}_{nazwa_pliku}.txt"
-
-        # Zapisywanie tekstu do pliku w tej samej lokalizacji
-        with open(os.path.join(os.path.dirname(sciezka_pliku), nowa_nazwa_pliku), "w") as plik:
-            plik.write(tekst_uzytkownika)
-
-        info_label.config(text=f"Zapisano jako: {nowa_nazwa_pliku}")
-
