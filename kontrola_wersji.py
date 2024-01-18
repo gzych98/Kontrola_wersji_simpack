@@ -118,6 +118,10 @@ class MainApp(QMainWindow):
         self.solver_path_edit = QLineEdit(self)
         self.solver_path_edit.setPlaceholderText("Wprowadź ścieżkę do solvera")
         self.solver_path_edit.setText(r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv")
+
+        self.pre_path_edit = QLineEdit(self)
+        self.pre_path_edit.setPlaceholderText("Wprowadź ścieżkę do pre")
+        self.pre_path_edit.setText(r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-pre")
         
 
         self.info_label = QLabel("", self)
@@ -141,6 +145,7 @@ class MainApp(QMainWindow):
         main_layout = QVBoxLayout()
         main_layout.addLayout(buttons_layout)
         main_layout.addWidget(self.solver_path_edit)
+        main_layout.addWidget(self.pre_path_edit)
         main_layout.addLayout(buttons_layout_2)
         main_layout.addWidget(self.drag_drop_label)
         main_layout.addWidget(self.listbox)
@@ -160,8 +165,9 @@ class MainApp(QMainWindow):
         # Pobranie aktualnie wybranego pliku z listboxa
         selected_items = self.listbox.selectedItems()
         if selected_items:
-            sciezka_pliku = selected_items[0].text()  # Zakładając, że interesuje nas pierwszy wybrany element
-            aktywuj_simpack_pre_i_otworz_plik(sciezka_pliku)
+            pre_path = self.pre_path_edit.text()
+            process_args = None
+            aktywuj_simpack_pre_i_otworz_plik(self.listbox, self.info_label, self, process_args, pre_path)
         else:
             self.info_label.setText("Proszę wybrać plik z listy.")
 

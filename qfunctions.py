@@ -48,7 +48,7 @@ def testowy_proces(arguments):
     global process_active
     process_active.set()  # Ustawienie flagi na aktywną
     try:
-        print(f"Rozpoczynam proces z argumentami: {arguments}")
+        print(f"PROCES:\tRozpoczynam proces z argumentami: {arguments}")
         time.sleep(5)  # Symulacja trwania procesu
         wynik = f"Wynik procesu dla {arguments}: {random.randint(1, 100)}"
         print(wynik)
@@ -112,27 +112,42 @@ def uruchom_analize(arguments, solver_path, delay_time, output_queue):
 
     process_active.clear()  # Zakończenie procesu i czyszczenie flagi
 
-def aktywuj_simpack_pre_i_otworz_plik(sciezka_pliku):
-    sciezka_pliku = sciezka_pliku.replace("/", "\\")
-
-    # Jeśli pierwszy znak to backslash, PyAutoGUI może go interpretować jako kombinację klawiszy,
-    # więc dodajemy r przed stringiem, aby zapewnić, że będzie traktowany jako surowy string
-    sciezka_pliku = 'r"' + sciezka_pliku + '"'
+def aktywuj_simpack_pre_i_otworz_plik(listbox, info_label, mainWindow, process_args, solver):
+    selected_items = listbox.selectedItems()
     okna = [okno for okno in gw.getAllWindows() if "- Simpack 2023x.3 - Pre" in okno.title]
+    if not selected_items:
+        info_label.setText("Wybierz plik")
+        return
 
-    if okna:
-        okno = okna[0]  # Zakładając, że interesuje nas pierwsze znalezione okno
-        okno.activate()  # Aktywacja okna
+    for item in selected_items:
+        full_path = item.text()
+        # Sprawdzenie rozszerzenia pliku
+        if not full_path.lower().endswith('.spck'):
+            info_label.setText("To nie jest plik .spck")
+            continue
+        if okna:
+            okno = okna[0]  # Zakładając, że interesuje nas pierwsze znalezione okno
+            okno.activate()  # Aktywacja okna
 
-        # Symulacja naciśnięcia CTRL+O
-        pyautogui.hotkey('ctrl', 'o')
-        time.sleep(1)  # Krótkie opóźnienie, aby upewnić się, że okno dialogowe jest otwarte
+            # Symulacja naciśnięcia CTRL+O
+            pyautogui.hotkey('ctrl', 'o')
+            time.sleep(1)  # Krótkie opóźnienie, aby upewnić się, że okno dialogowe jest otwarte
 
-        # Wpisanie ścieżki do pliku i naciśnięcie 'Enter'
-        pyautogui.write(sciezka_pliku)
-        pyautogui.press('enter')
-    else:
-        print("Nie znaleziono okna Simpack Pre.")
+            # Wpisanie ścieżki do pliku i naciśnięcie 'Enter'
+            pyautogui.write(full_path)
+            pyautogui.press('enter')
+        else:
+            arguments = [process_args + [full_path]]
+            print(f"ARGS: {arguments}")
+            #solver = r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-slv"
+            filename = os.path.basename(full_path)
+
+            output_queue = queue.Queue()
+            threading.Thread(target=uruchom_analize, args=(arguments, solver, 0, output_queue)).start()
+            if process_active.is_set():
+                print("PROCES:\tProces jest aktywny")
+            else:
+                print("PROCES:\tProces nie jest aktywny")
     
 class CustomTextDialog(QDialog):
     def __init__(self, parent, title, prompt):
