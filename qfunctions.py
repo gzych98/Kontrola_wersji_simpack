@@ -4,10 +4,12 @@ import os, subprocess, threading, queue
 import time, datetime
 import pygetwindow as gw
 import pyautogui
+import shutil
 
 
 # Globalna flaga stanu procesu (bezpieczna dla wątków)
 process_active = threading.Event()
+simpack_pre_active = threading.Event()
 
 def app_process(listbox, info_label, mainWindow, process_args, solver):
     selected_items = listbox.selectedItems()
@@ -58,11 +60,53 @@ def testowy_proces(arguments):
 
 def dialog_and_logging(mainWindow, full_path, log_file_path):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    basename = read_model_data(full_path)
     dialog = CustomTextDialog(mainWindow, "Log", "Log text:")
     if dialog.exec_() == QDialog.Accepted:
         log_text = dialog.getText()
         with open(log_file_path, "a", encoding='utf-8') as plik:
-            plik.write(f"{timestamp} - Log tekst:\n{log_text}\n\n")
+            plik.write(f"{timestamp} - Log tekst:\n\t{log_text}\n{basename}\n\n")
+
+def read_model_data(file_path):
+    # Zmienne przechowujące wyniki dla obu linii
+    output_file_basename = None
+    output_path_type = None
+
+    # Otwórz plik
+    with open(file_path, 'r') as file:
+        # Przejdź przez każdą linię w pliku
+        for line in file:
+            if 'slv.output.file.basename' in line:
+                start = line.find("'") + 1
+                end = line.find("'", start)
+                output_file_basename = line[start:end]
+            elif 'slv.output.path.type' in line:
+                start = line.find('=') + 1
+                end = line.find('!', start)
+                output_path_type = line[start:end].strip()
+            elif 'slv.integ.tout.freq' in line:
+                start = line.find('=') + 1
+                end = line.find('!', start)
+                output_freq = line[start:end].strip()
+            elif 'slv.integ.tend.time' in line:
+                start = line.find('=') + 1
+                end = line.find('!', start)
+                output_time = line[start:end].strip()
+            
+
+    # Przygotuj tekst do zwrotu
+    result = ""
+    if output_file_basename:
+        result += "\n\t" + output_file_basename
+    if output_path_type:
+        result += "\n\tPath type: " + output_path_type
+    if output_freq:
+        result += "\n\\freq: " + output_freq
+    if output_time:
+        result += "\\time: " + output_time
+    return result if result else None
+
+
 
 def process_output(output_queue, log_file_path):
     while True:
@@ -98,6 +142,7 @@ def uruchom_analize(arguments, solver_path, delay_time, output_queue):
 
         for argument in arguments:
             if isinstance(argument, list):
+                print(f'TEST:\t{[solver_path] + argument}')
                 process = subprocess.Popen([solver_path] + argument, creationflags=subprocess.CREATE_NEW_CONSOLE)
                 procesy.append(process)  # Dodanie procesu do listy
             else:
@@ -114,7 +159,7 @@ def uruchom_analize(arguments, solver_path, delay_time, output_queue):
 
 def aktywuj_simpack_pre_i_otworz_plik(listbox, info_label, mainWindow, process_args, solver):
     selected_items = listbox.selectedItems()
-    okna = [okno for okno in gw.getAllWindows() if "- Simpack 2023x.3 - Pre" in okno.title]
+    okna = [okno for okno in gw.getAllWindows() if "- Simpack 2023x.3 " in okno.title]
     if not selected_items:
         info_label.setText("Wybierz plik")
         return
@@ -159,6 +204,7 @@ class CustomTextDialog(QDialog):
         layout.addWidget(QLabel(prompt))
 
         self.textEdit = QTextEdit(self)
+        self.textEdit.setPlainText("Czas analizy: 10s\nModyfikacje: Brak")
         layout.addWidget(self.textEdit)
 
         submitButton = QPushButton("OK", self)
