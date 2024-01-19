@@ -159,6 +159,7 @@ def uruchom_analize(arguments, solver_path, delay_time, output_queue):
 
 def aktywuj_simpack_pre_i_otworz_plik(listbox, info_label, mainWindow, process_args, solver):
     selected_items = listbox.selectedItems()
+    
     okna = [okno for okno in gw.getAllWindows() if "- Simpack 2023x.3 " in okno.title]
     if not selected_items:
         info_label.setText("Wybierz plik")
@@ -166,6 +167,8 @@ def aktywuj_simpack_pre_i_otworz_plik(listbox, info_label, mainWindow, process_a
 
     for item in selected_items:
         full_path = item.text()
+        full_path_edit = full_path.replace('/','\\')
+        print(full_path_edit)
         # Sprawdzenie rozszerzenia pliku
         if not full_path.lower().endswith('.spck'):
             info_label.setText("To nie jest plik .spck")
@@ -179,7 +182,7 @@ def aktywuj_simpack_pre_i_otworz_plik(listbox, info_label, mainWindow, process_a
             time.sleep(1)  # Krótkie opóźnienie, aby upewnić się, że okno dialogowe jest otwarte
 
             # Wpisanie ścieżki do pliku i naciśnięcie 'Enter'
-            pyautogui.write(full_path)
+            pyautogui.write(full_path_edit)
             pyautogui.press('enter')
         else:
             arguments = [process_args + [full_path]]
