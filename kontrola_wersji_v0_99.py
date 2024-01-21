@@ -1,11 +1,12 @@
 import os
 import shutil
-from PyQt5.QtWidgets import QListWidgetItem  ,QApplication, QMainWindow, QPushButton, QLabel, QListWidget, QVBoxLayout, QHBoxLayout, QWidget, QDesktopWidget, QLineEdit, QDialog, QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtWidgets import QTextEdit ,QListWidgetItem  ,QApplication, QMainWindow, QPushButton, QLabel, QListWidget, QVBoxLayout, QHBoxLayout, QWidget, QDesktopWidget, QLineEdit, QDialog, QSystemTrayIcon, QMenu, QAction
 from PyQt5.QtGui import QIcon, QDragEnterEvent, QDropEvent
 from qfunctions import app_process, process_active, aktywuj_simpack_pre_i_otworz_plik, simpack_pre_active
 from PyQt5.QtCore import Qt, QTimer
 import pygetwindow as gw
 import datetime
+from ftplib import FTP
 
 class DragDropListWidget(QListWidget):
     def __init__(self, parent=None):
@@ -119,6 +120,7 @@ class MainApp(QMainWindow):
         self.open_simpack_button = QPushButton("Otwórz w Simpack Pre", self)
         self.open_simpack_button.clicked.connect(self.otworz_w_simpack_pre)
 
+        
         self.status_label = QLabel("Stan procesu: Nieaktywny", self)
         self.status_gui_label = QLabel("Simpack Pre GUI: Zamknięte", self)
 
@@ -130,14 +132,20 @@ class MainApp(QMainWindow):
         self.pre_path_edit = QLineEdit(self)
         self.pre_path_edit.setPlaceholderText("Wprowadź ścieżkę do pre")
         self.pre_path_edit.setText(r"C:\Program Files\Simpack-2023x.3\run\bin\win64\simpack-gui")
-        
 
-        self.info_label = QLabel("", self)
+        # POŁĄCZENIE Z SERWEREM
+
+        self.connectButton = QPushButton('Połącz', self)
+        self.connectButton.clicked.connect(self.connectToFtp)
+        self.resultField = QTextEdit(self)      
+
 
         # Układanie widgetów
         buttons_layout = QHBoxLayout()
         buttons_layout_2 = QHBoxLayout()
         buttons_layout_end = QHBoxLayout()
+
+        serwer_layout = QHBoxLayout()
         
         # buttons_layout.addWidget(self.add_button)
         buttons_layout.addWidget(self.open_simpack_button)
@@ -152,6 +160,9 @@ class MainApp(QMainWindow):
         buttons_layout_end.addWidget(self.minimize_button)
         buttons_layout_end.addWidget(self.close_button)
 
+        serwer_layout.addWidget(self.connectButton)
+        serwer_layout.addWidget(self.resultField)
+
         main_layout = QVBoxLayout()
         main_layout.addLayout(buttons_layout)
         main_layout.addWidget(self.solver_path_edit)
@@ -160,8 +171,8 @@ class MainApp(QMainWindow):
         main_layout.addWidget(self.status_gui_label)
         main_layout.addLayout(buttons_layout_2)
         main_layout.addWidget(self.drag_drop_label)
-        main_layout.addWidget(self.listbox)
-        main_layout.addWidget(self.info_label)        
+        main_layout.addWidget(self.listbox)        
+        main_layout.addLayout(serwer_layout)      
         main_layout.addWidget(self.delete_button)
         main_layout.addLayout(buttons_layout_end)
 
@@ -171,6 +182,20 @@ class MainApp(QMainWindow):
 
     def close_app(self):
         self.close()
+
+    def connectToFtp(self):
+        try:
+            with open('ftp_dane.txt', 'r') as file:
+                address, user, password = [line.strip() for line in file]
+
+            with FTP(address) as ftp:
+                ftp.login(user, password)
+                ftp.retrlines('LIST', self.updateResult)
+        except Exception as e:
+            self.updateResult(str(e))
+
+    def updateResult(self, line):
+        self.resultField.append(line)
 
     def copy_model(self):
         selected_items = self.listbox.selectedItems()
